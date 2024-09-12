@@ -19,7 +19,7 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=client_id,
                                                ))
                                                
 
-playlist_id = 'your_playlist_id'
+playlist_id = '2uORYX3pVmRBUJe8uXrK8H'
 results = sp.playlist_tracks(playlist_id)
 tracks = results['items']
 
@@ -34,52 +34,58 @@ for track in tracks:
         data.append(features)
         urls.append(track['track']['external_urls']['spotify'])
 
-# Convert to DataFrame
-df = pd.DataFrame(data)
+print(data)
 
-# Drop non-numeric columns if any
-df = df.select_dtypes(include=[float, int])
+# # Convert to DataFrame
+# df = pd.DataFrame(data)
 
-# Add URLs to DataFrame
-df['song_url'] = urls
+# # Observe correletion
 
-# Feature engineering
-df['harmonic_complexity'] = df['key'] * df['mode']
-df['rhythmic_variability'] = df['tempo'].rolling(window=5).std()
+# # print(df[['danceability', 'energy','loudness', 'speechiness', 'acousticness', 'instrumentalness', 'tempo', 'valence']].corr())
 
-# Handle missing values (NaNs) using SimpleImputer
-numeric_features = df.select_dtypes(include=[float, int]).copy()
-imputer = SimpleImputer(strategy='mean')
-numeric_features_imputed = imputer.fit_transform(numeric_features)
+# # Drop non-numeric columns if any
+# df = df.select_dtypes(include=[float, int])
 
-# Create a DataFrame with the imputed values
-df_imputed = pd.DataFrame(numeric_features_imputed, columns=numeric_features.columns)
+# # Add URLs to DataFrame
+# df['song_url'] = urls
 
-# Reattach the URL column
-df_imputed['song_url'] = df['song_url']
+# # Feature engineering
+# df['harmonic_complexity'] = df['key'] * df['mode']
+# df['rhythmic_variability'] = df['tempo'].rolling(window=5).std()
 
-# Standardize the data
-scaler = StandardScaler()
-scaled_features = scaler.fit_transform(df_imputed[['valence', 'energy', 'tempo', 'danceability', 'harmonic_complexity', 'rhythmic_variability']])
+# # Handle missing values (NaNs) using SimpleImputer
+# numeric_features = df.select_dtypes(include=[float, int]).copy()
+# imputer = SimpleImputer(strategy='mean')
+# numeric_features_imputed = imputer.fit_transform(numeric_features)
 
-# Dimensionality reduction 
-pca = PCA(n_components=3)
-pca_features = pca.fit_transform(scaled_features)
+# # Create a DataFrame with the imputed values
+# df_imputed = pd.DataFrame(numeric_features_imputed, columns=numeric_features.columns)
 
-# Apply K-Means clustering
-kmeans = KMeans(n_clusters=4, random_state=42)
-clusters = kmeans.fit_predict(pca_features)
+# # Reattach the URL column
+# df_imputed['song_url'] = df['song_url']
 
-# Add cluster labels to DataFrame
-df_imputed['cluster'] = clusters
+# # Standardize the data
+# scaler = StandardScaler()
+# scaled_features = scaler.fit_transform(df_imputed[['valence', 'energy', 'tempo', 'danceability', 'harmonic_complexity', 'rhythmic_variability']])
 
-# Analyze clusters
-for cluster in range(4):
-    print(f"Cluster {cluster}")
-    print(df_imputed[df_imputed['cluster'] == cluster].describe())
+# # Dimensionality reduction 
+# pca = PCA(n_components=3)
+# pca_features = pca.fit_transform(scaled_features)
+
+# # Apply K-Means clustering
+# kmeans = KMeans(n_clusters=4, random_state=42)
+# clusters = kmeans.fit_predict(pca_features)
+
+# # Add cluster labels to DataFrame
+# df_imputed['cluster'] = clusters
+
+# # Analyze clusters
+# for cluster in range(4):
+#     print(f"Cluster {cluster}")
+#     print(df_imputed[df_imputed['cluster'] == cluster].describe())
     
-    print(f"Cluster {cluster} URLs:")
-    urls = df_imputed[df_imputed['cluster'] == cluster]['song_url'].tolist()
-    for url in urls:
-        print(url)
-    print() 
+#     print(f"Cluster {cluster} URLs:")
+#     urls = df_imputed[df_imputed['cluster'] == cluster]['song_url'].tolist()
+#     for url in urls:
+#         print(url)
+#     print() 
