@@ -4,88 +4,69 @@ import os
 from spotipy.oauth2 import SpotifyOAuth
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans
 from sklearn.impute import SimpleImputer
+import numpy as np
 
+# Load environment variables and set up Spotify client
 load_dotenv()
-
 client_id = os.getenv('CLIENT_ID')
 client_secret = os.getenv('CLIENT_SECRET')
-
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=client_id,
                                                client_secret=client_secret,
                                                redirect_uri='https://google.com'
                                                ))
-                                               
 
+# Fetch playlist tracks
 playlist_id = '2uORYX3pVmRBUJe8uXrK8H'
 results = sp.playlist_tracks(playlist_id)
 tracks = results['items']
 
-# Extract features and URLs
+# Extract features, names, and URLs
 data = []
-urls = []  
-
+names = []
+urls = []
 for track in tracks:
     song_id = track['track']['id']
     features = sp.audio_features(song_id)[0]
     if features is not None:
         data.append(features)
+        names.append(track['track']['name'])
         urls.append(track['track']['external_urls']['spotify'])
 
-print(data)
+# Convert to DataFrame
+df = pd.DataFrame(data)
 
-# # Convert to DataFrame
-# df = pd.DataFrame(data)
+# # Select relevant features (make sure these match the features used in training)
+# features = ['valence', 'energy', 'danceability', 'acousticness', 'loudness', 'tempo', 'instrumentalness', 'liveness']
+# X = df[features]
 
-# # Observe correletion
+# # Load the trained model and related components
+# model = tf.keras.models.load_model('model/full_model.h5')
+# with open('model/label_encoder.pkl', 'rb') as f:
+#     le = pickle.load(f)
+# with open('model/feature_scaler.pkl', 'rb') as f:
+#     scaler = pickle.load(f)
 
-# # print(df[['danceability', 'energy','loudness', 'speechiness', 'acousticness', 'instrumentalness', 'tempo', 'valence']].corr())
-
-# # Drop non-numeric columns if any
-# df = df.select_dtypes(include=[float, int])
-
-# # Add URLs to DataFrame
-# df['song_url'] = urls
-
-# # Feature engineering
-# df['harmonic_complexity'] = df['key'] * df['mode']
-# df['rhythmic_variability'] = df['tempo'].rolling(window=5).std()
-
-# # Handle missing values (NaNs) using SimpleImputer
-# numeric_features = df.select_dtypes(include=[float, int]).copy()
+# # Preprocess the data
 # imputer = SimpleImputer(strategy='mean')
-# numeric_features_imputed = imputer.fit_transform(numeric_features)
+# X_imputed = imputer.fit_transform(X)
+# X_scaled = scaler.transform(X_imputed)
 
-# # Create a DataFrame with the imputed values
-# df_imputed = pd.DataFrame(numeric_features_imputed, columns=numeric_features.columns)
+# # Make predictions
+# predictions = model.predict(X_scaled)
+# predicted_classes = np.argmax(predictions, axis=1)
+# predicted_emotions = le.inverse_transform(predicted_classes)
 
-# # Reattach the URL column
-# df_imputed['song_url'] = df['song_url']
+# # Create a DataFrame with results
+# results_df = pd.DataFrame({
+#     'Song Name': names,
+#     'Song URL': urls,
+#     'Predicted Emotion': predicted_emotions
+# })
 
-# # Standardize the data
-# scaler = StandardScaler()
-# scaled_features = scaler.fit_transform(df_imputed[['valence', 'energy', 'tempo', 'danceability', 'harmonic_complexity', 'rhythmic_variability']])
+# # Print the results
+# print(results_df.to_string(index=False))
 
-# # Dimensionality reduction 
-# pca = PCA(n_components=3)
-# pca_features = pca.fit_transform(scaled_features)
-
-# # Apply K-Means clustering
-# kmeans = KMeans(n_clusters=4, random_state=42)
-# clusters = kmeans.fit_predict(pca_features)
-
-# # Add cluster labels to DataFrame
-# df_imputed['cluster'] = clusters
-
-# # Analyze clusters
-# for cluster in range(4):
-#     print(f"Cluster {cluster}")
-#     print(df_imputed[df_imputed['cluster'] == cluster].describe())
-    
-#     print(f"Cluster {cluster} URLs:")
-#     urls = df_imputed[df_imputed['cluster'] == cluster]['song_url'].tolist()
-#     for url in urls:
-#         print(url)
-#     print() 
+# # Optionally, save the results to a CSV file
+# results_df.to_csv('playlist_emotions.csv', index=False)
+# print("\nResults have been saved to 'playlist_emotions.csv'")
