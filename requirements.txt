@@ -1,4 +1,10 @@
 spotipy
-pandas
-scikit-learn
 python-dotenv
+pandas
+numpy
+tensorflow
+scikit-learn
+matplotlib
+keras
+scipy
+seaborn

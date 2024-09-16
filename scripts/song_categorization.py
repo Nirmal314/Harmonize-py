@@ -6,8 +6,13 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 import numpy as np
+from tensorflow.keras.models import load_model
+from sklearn.preprocessing import LabelEncoder
+from tensorflow.keras.utils import to_categorical
+import json
 
-# Load environment variables and set up Spotify client
+model = load_model('model/models_final.h5')
+
 load_dotenv()
 client_id = os.getenv('CLIENT_ID')
 client_secret = os.getenv('CLIENT_SECRET')
@@ -22,51 +27,67 @@ results = sp.playlist_tracks(playlist_id)
 tracks = results['items']
 
 # Extract features, names, and URLs
-data = []
-names = []
-urls = []
+songs = []
 for track in tracks:
+    song = {}
     song_id = track['track']['id']
     features = sp.audio_features(song_id)[0]
     if features is not None:
-        data.append(features)
-        names.append(track['track']['name'])
-        urls.append(track['track']['external_urls']['spotify'])
+        song["name"] = track['track']['name']
+        song["url"] = track['track']['external_urls']['spotify']
 
-# Convert to DataFrame
-df = pd.DataFrame(data)
+        features.pop('type')
+        features.pop('id')
+        features.pop('uri')
+        features.pop('track_href')
+        features.pop('analysis_url')
+        features.pop('duration_ms')
+        features.pop('time_signature')
 
-# # Select relevant features (make sure these match the features used in training)
-# features = ['valence', 'energy', 'danceability', 'acousticness', 'loudness', 'tempo', 'instrumentalness', 'liveness']
-# X = df[features]
+        song["features"] = features
 
-# # Load the trained model and related components
-# model = tf.keras.models.load_model('model/full_model.h5')
-# with open('model/label_encoder.pkl', 'rb') as f:
-#     le = pickle.load(f)
-# with open('model/feature_scaler.pkl', 'rb') as f:
-#     scaler = pickle.load(f)
+        songs.append(song)
 
-# # Preprocess the data
-# imputer = SimpleImputer(strategy='mean')
-# X_imputed = imputer.fit_transform(X)
-# X_scaled = scaler.transform(X_imputed)
+# Define the feature list
+features = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 
+            'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
 
-# # Make predictions
-# predictions = model.predict(X_scaled)
-# predicted_classes = np.argmax(predictions, axis=1)
-# predicted_emotions = le.inverse_transform(predicted_classes)
+df = pd.read_csv('predicted_songs_with_categories_vs.csv')
+X = df[features]
 
-# # Create a DataFrame with results
-# results_df = pd.DataFrame({
-#     'Song Name': names,
-#     'Song URL': urls,
-#     'Predicted Emotion': predicted_emotions
-# })
+# Fit the scaler using the existing data
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)  # Fit the scaler here
 
-# # Print the results
-# print(results_df.to_string(index=False))
+y = df['predicted_category']
 
-# # Optionally, save the results to a CSV file
-# results_df.to_csv('playlist_emotions.csv', index=False)
-# print("\nResults have been saved to 'playlist_emotions.csv'")
+le = LabelEncoder()
+y_encoded = le.fit_transform(y)
+y_categorical = to_categorical(y_encoded)
+
+def predict_category(song_data):
+    song_data = song_data['features']
+    # Ensure the song_data has all required features
+    required_features = set(features)
+    provided_features = set(song_data.keys())
+    if not required_features.issubset(provided_features):
+        missing_features = required_features - provided_features
+        raise ValueError(f"Missing features: {missing_features}")
+    
+    # Extract and scale features
+    song_features = np.array([[song_data[feature] for feature in features]])
+    song_features_scaled = scaler.transform(song_features)  # Use the fitted scaler here
+    
+    # Make prediction
+    prediction = model.predict(song_features_scaled)
+    predicted_index = np.argmax(prediction)
+    predicted_category = le.inverse_transform([predicted_index])[0]
+    
+    return predicted_category
+
+# Make predictions for each song
+for song in songs:
+    song['category'] = predict_category(song)
+
+with open('json/final.json', 'w') as file:
+    json.dump(songs, file, indent=4)
