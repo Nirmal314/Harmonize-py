@@ -1,6 +1,6 @@
 # Harmonize
 
-This project categorizes songs from a Spotify playlist into different categories using machine learning techniques.
+This project categorizes songs from a Spotify playlist into different categories (happy, sad, calm, energetic, confident) using machine learning techniques.
 
 ## Setup
 

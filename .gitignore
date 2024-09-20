@@ -1,3 +1,5 @@
 .cache
 .env
 tempCodeRunnerFile.py
+/prompts
+*.csv

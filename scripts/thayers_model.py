@@ -1,33 +1,50 @@
 import json
 
-def categorize_song(song):
-    energy = song['energy']
-    valence = song['valence']
-    instrumentalness = song['instrumentalness']
-    danceability = song['danceability']
 
-    # Categorize as Instrumental
-    if instrumentalness >= 0.5:
-        return 'Instrumental'
+def categorize_song(song_features):
+    danceability = song_features['danceability']
+    energy = song_features['energy']
+    valence = song_features['valence']
+    tempo = song_features['tempo']
+    loudness = song_features['loudness']
+    instrumentalness = song_features['instrumentalness']
+    mode = song_features['mode']
     
-    # Thayer's model-based categorization
-    if energy >= 0.6:
-        if valence >= 0.5:
-            if danceability >= 0.7:
-                return 'Confident'
-            return 'Happy'
+    # Instrumental songs
+    if instrumentalness > 0.5:
+        return 'instrumental'
+    
+    # High arousal (energy), High valence (positive)
+    if energy > 0.7 and valence > 0.6:
+        if tempo > 120 and danceability > 0.6:
+            return 'happy'
         else:
-            return 'Energetic'
+            return 'energetic'
+    
+    # High arousal (energy), Low valence (negative)
+    if energy > 0.7 and valence < 0.4:
+        if mode == 0:  # Minor key
+            return 'confident'
+        else:
+            return 'tense'
+    
+    # Low arousal (calm), High valence (positive)
+    if energy < 0.5 and valence > 0.6:
+        return 'calm'
+    
+    # Low arousal (energy), Low valence (negative)
+    if energy < 0.5 and valence < 0.4:
+        return 'sad'
+    
+    # Default categorization if no clear category
+    if valence > 0.5:
+        return 'happy'
     else:
-        if valence >= 0.5:
-            return 'Calm'
-        else:
-            return 'Sad'
-        
-with open('json/sound_data.json', 'r') as file:
+        return 'sad'
+
+with open('json/songs_with_categories.json', 'r') as file:
     songs = json.load(file)
 
 for song in songs:
     # print(song)
-    print(f"Category: {categorize_song(song)}\nSong ID: {song.get("id", "no id")}\n\n")
-
+    print(f"Song: {song['name']} \nCategory: {categorize_song(song['features'])}\n")

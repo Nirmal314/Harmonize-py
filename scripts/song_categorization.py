@@ -7,11 +7,12 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 import numpy as np
 from tensorflow.keras.models import load_model
-from sklearn.preprocessing import LabelEncoder
 from tensorflow.keras.utils import to_categorical
 import json
+from sklearn.preprocessing import MinMaxScaler, LabelEncoder
+import matplotlib.pyplot as plt
 
-model = load_model('model/models_final.h5')
+model = load_model('model/song_category_model_T_v3.h5')
 
 load_dotenv()
 client_id = os.getenv('CLIENT_ID')
@@ -43,51 +44,92 @@ for track in tracks:
         features.pop('analysis_url')
         features.pop('duration_ms')
         features.pop('time_signature')
+        features.pop('key')
+        features.pop('loudness')
+        features.pop('mode')
+        features.pop('speechiness')
+        features.pop('instrumentalness')
+        features.pop('liveness')
+        # features.pop('tempo')
 
         song["features"] = features
 
         songs.append(song)
 
-# Define the feature list
-features = ['danceability', 'energy', 'key', 'loudness', 'mode', 'speechiness', 
-            'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
 
-df = pd.read_csv('predicted_songs_with_categories_vs.csv')
-X = df[features]
+with open('json/songs_with_categories.json', 'r') as file:
+    songs_json = json.load(file)
 
-# Fit the scaler using the existing data
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)  # Fit the scaler here
+df = pd.DataFrame([{**song, **song['features']} for song in songs_json])
 
-y = df['predicted_category']
+# songs_json_filtered = [
+#     {feature: song['features'][feature] for feature in selected_features}
+#     for song in songs_json
+# ]
 
-le = LabelEncoder()
-y_encoded = le.fit_transform(y)
-y_categorical = to_categorical(y_encoded)
+selected_features = ["danceability", "energy", "acousticness", "valence", "tempo"]
+X_new = df[selected_features]
 
-def predict_category(song_data):
-    song_data = song_data['features']
-    # Ensure the song_data has all required features
-    required_features = set(features)
-    provided_features = set(song_data.keys())
-    if not required_features.issubset(provided_features):
-        missing_features = required_features - provided_features
-        raise ValueError(f"Missing features: {missing_features}")
-    
-    # Extract and scale features
-    song_features = np.array([[song_data[feature] for feature in features]])
-    song_features_scaled = scaler.transform(song_features)  # Use the fitted scaler here
-    
-    # Make prediction
-    prediction = model.predict(song_features_scaled)
-    predicted_index = np.argmax(prediction)
-    predicted_category = le.inverse_transform([predicted_index])[0]
-    
-    return predicted_category
+# Normalize the features
+scaler = MinMaxScaler()
+X_new_normalized = scaler.fit_transform(X_new)
 
-# Make predictions for each song
-for song in songs:
-    song['category'] = predict_category(song)
+# Make predictions
+predictions = model.predict(X_new_normalized)
+predicted_classes = np.argmax(predictions, axis=1)
 
-with open('json/final.json', 'w') as file:
-    json.dump(songs, file, indent=4)
+# If you want to convert the predicted class indices back to labels
+label_encoder = LabelEncoder()
+label_encoder.classes_ = np.load('model/label_encoders/label_encoder_classes_T_v3.npy', allow_pickle=True)
+predicted_labels = label_encoder.inverse_transform(predicted_classes)
+
+df['predicted_category'] = predicted_labels
+
+# Create a list of dictionaries with the results
+results = df.to_dict('records')
+count = 0
+# for result in results:
+#     print(f"Song: {result['name']}")
+#     print(f"Original category: {result['category']}")
+#     print(f"Predicted category: {result['predicted_category']}")
+#     if result['category'] != result['predicted_category']:
+#         count = count + 1
+
+#     print("---")
+
+# accuracy = 100 - (count / len(results) * 100)
+
+# # Print the accuracy
+# print(f"Accuracy: {accuracy:.2f}%")
+
+# Initialize a dictionary to hold counts
+category_counts = {category: {'correct': 0, 'total': 0} for category in df['category'].unique()}
+
+# Count correct predictions per category
+for result in results:
+    print(f"Song: {result['name']}")
+    print(f"Original category: {result['category']}")
+    print(f"Predicted category: {result['predicted_category']}")
+    print("--------")
+    category = result['category']
+    category_counts[category]['total'] += 1
+    if category == result['predicted_category']:
+        category_counts[category]['correct'] += 1
+
+# Calculate accuracy for each category
+accuracy_per_category = {
+    category: (counts['correct'] / counts['total']) * 100 if counts['total'] > 0 else 0
+    for category, counts in category_counts.items()
+}
+
+# Prepare data for plotting
+accuracy_df = pd.DataFrame(list(accuracy_per_category.items()), columns=['Category', 'Accuracy'])
+
+# Plotting
+plt.figure(figsize=(12, 6))
+plt.bar(accuracy_df['Category'], accuracy_df['Accuracy'], color='skyblue')
+plt.title('Model Prediction Accuracy by Category')
+plt.ylabel('Accuracy (%)')
+plt.ylim(0, 100)
+plt.xticks(rotation=45)
+plt.show()
